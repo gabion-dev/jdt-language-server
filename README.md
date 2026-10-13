@@ -1,6 +1,6 @@
 # JDT Language Server Mirror
 
-Mirror of Eclipse JDT Language Server milestone builds for deterministic installation by [Gabion](https://github.com/Aletherium/gabion).
+Mirror of Eclipse JDT Language Server milestone builds for deterministic installation by [Gabion](https://github.com/gabion-dev).
 
 Eclipse milestone builds are hosted on `download.eclipse.org` behind a CDN that occasionally returns transient errors. This mirror provides permanent, CDN-backed URLs via GitHub Releases for reliable automated installation.
 
