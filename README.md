@@ -10,6 +10,6 @@ Archives are downloaded from [Eclipse JDT LS milestones](https://download.eclips
 
 ## License
 
-Eclipse JDT Language Server is licensed under the [Eclipse Public License 2.0](https://www.eclipse.org/legal/epl-2.0/).
+Eclipse JDT Language Server is licensed under the [Eclipse Public License 2.0](https://www.eclipse.org/legal/epl-2.0/). The Eclipse archive carries the license only inside its plugin jars, so every release of this mirror also publishes the license text as a `LICENSE` asset next to the archive (the [LICENSE](LICENSE) file of this repository), and the installer places it beside the server.
 
 See [eclipse-jdtls/eclipse.jdt.ls](https://github.com/eclipse-jdtls/eclipse.jdt.ls) for the source code.
