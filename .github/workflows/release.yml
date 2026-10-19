@@ -1,0 +1,113 @@
+# .github/workflows/release.yml
+name: Mirror a JDT LS milestone
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Eclipse JDT LS milestone to mirror (e.g. 1.61.0)'
+        required: true
+      java:
+        description: 'Java major version Gabion runs the server on (its pinned JDK); the milestone must start on it'
+        required: true
+        default: '21'
+
+permissions:
+  contents: write
+
+# =============================================================================
+# The mirror republishes an Eclipse milestone archive unmodified, under a
+# stable name, as a GitHub release (download.eclipse.org refuses some regions
+# while the file is in its index). Publishing is gated three ways:
+#   1. the archive is the one Eclipse names for the milestone (latest.txt) and
+#      matches the .sha256 published beside it;
+#   2. a source independent of Eclipse — Homebrew or the AUR, read from their
+#      own repositories — pins the same file with the same SHA-256; a checksum
+#      fetched from where the file came from proves nothing;
+#   3. the server starts on the Java Gabion runs it on and completes an LSP
+#      handshake. Its README is not trusted for the Java it needs: 1.62.0
+#      says 21 and needs 25.
+# A published tag is never rewritten: the installer builds its address from
+# the version, so a release is a contract.
+# =============================================================================
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ github.event.inputs.version }}
+      JAVA_MAJOR: ${{ github.event.inputs.java }}
+
+    steps:
+      - name: Check the inputs
+        run: |
+          set -euo pipefail
+          [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "version must look like 1.61.0" >&2; exit 1; }
+          [[ "${JAVA_MAJOR}" =~ ^[0-9]+$ ]] || { echo "java must be a major version like 21" >&2; exit 1; }
+
+      - uses: actions/checkout@v7
+
+      - name: Refuse a version that is already published
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "${VERSION}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
+            echo "Release ${VERSION} already exists — a published mirror release is never rewritten." >&2
+            exit 1
+          fi
+
+      - name: Download the milestone from Eclipse
+        id: fetch
+        run: |
+          set -euo pipefail
+          BASE="https://download.eclipse.org/jdtls/milestones/${VERSION}"
+          FILE="$(curl -fsSL "${BASE}/latest.txt" | tr -d '[:space:]')"
+          [[ "${FILE}" =~ ^jdt-language-server-${VERSION//./\\.}-[0-9]+\.tar\.gz$ ]] \
+            || { echo "unexpected latest.txt: ${FILE}" >&2; exit 1; }
+          curl -fsSL -o "${FILE}" "${BASE}/${FILE}"
+          PUBLISHED="$(curl -fsSL "${BASE}/${FILE}.sha256" | awk '{print $1}')"
+          ACTUAL="$(sha256sum "${FILE}" | awk '{print $1}')"
+          echo "Eclipse .sha256: ${PUBLISHED}"
+          echo "downloaded:      ${ACTUAL}"
+          [ "${PUBLISHED}" = "${ACTUAL}" ]
+          BUILD="${FILE#jdt-language-server-${VERSION}-}"
+          echo "file=${FILE}" >> "$GITHUB_OUTPUT"
+          echo "build=${BUILD%.tar.gz}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${ACTUAL}" >> "$GITHUB_OUTPUT"
+
+      - name: Confirm the checksum with sources independent of Eclipse
+        run: python3 -I scripts/confirm-checksum.py "${VERSION}" "${{ steps.fetch.outputs.file }}" "${{ steps.fetch.outputs.sha256 }}"
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ github.event.inputs.java }}
+
+      - name: Start the server on Java ${{ github.event.inputs.java }} and complete an LSP handshake
+        run: |
+          set -euo pipefail
+          java -version 2>&1 | head -1
+          mkdir -p server scratch
+          tar -xzf "${{ steps.fetch.outputs.file }}" -C server
+          python3 -I scripts/verify-launch.py server scratch \
+            || { echo "JDT LS ${VERSION} does not start on Java ${JAVA_MAJOR} — see the configuration log:" >&2; cat server/config_linux/*.log >&2 || true; exit 1; }
+
+      - name: Name the archive as the installer expects it
+        run: cp "${{ steps.fetch.outputs.file }}" "jdt-language-server-${VERSION}.tar.gz"
+
+      - name: Create the release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: JDT Language Server ${{ github.event.inputs.version }}
+          body: |
+            Mirror of Eclipse JDT LS milestone ${{ github.event.inputs.version }} (build ${{ steps.fetch.outputs.build }}).
+
+            Source: https://download.eclipse.org/jdtls/milestones/${{ github.event.inputs.version }}/
+            SHA-256: ${{ steps.fetch.outputs.sha256 }} — matches the Eclipse `.sha256` and a source independent of Eclipse (Homebrew or the AUR).
+            Verified: starts on Java ${{ github.event.inputs.java }} and completes an LSP handshake.
+            License: EPL-2.0
+          files: |
+            jdt-language-server-${{ github.event.inputs.version }}.tar.gz
+            LICENSE
