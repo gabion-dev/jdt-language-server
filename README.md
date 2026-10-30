@@ -14,7 +14,8 @@ Releases are made by the [release workflow](.github/workflows/release.yml) (Acti
 
 - the archive is the one Eclipse names for the milestone (`latest.txt`) and matches the `.sha256` beside it;
 - a source independent of Eclipse — the Homebrew formula or the AUR package of `jdtls` — pins the same file with the same SHA-256 ([scripts/confirm-checksum.py](scripts/confirm-checksum.py));
-- the server starts on the Java version given to the workflow and completes an LSP handshake ([scripts/verify-launch.py](scripts/verify-launch.py)). The project's README is not trusted for the Java it needs: 1.62.0 states 21 but requires 25.
+- the server starts on the Java version given to the workflow and completes an LSP handshake ([scripts/verify-launch.py](scripts/verify-launch.py)). The project's README is not trusted for the Java it needs: 1.62.0 states 21 but requires 25;
+- the dependency audit of this repository passes ([.github/workflows/audit.yml](.github/workflows/audit.yml), also run by hand from the Actions tab): every GitHub Action the workflows pin is its newest release, or a lag declared in `gabion-audit.json` with its reason.
 
 A published release is never rewritten: installers build its address from the version.
 
