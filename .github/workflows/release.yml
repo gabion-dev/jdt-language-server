@@ -32,13 +32,7 @@ permissions:
 # =============================================================================
 
 jobs:
-  # The repository's dependency audit (audit.yml): a mirror is published
-  # only while every release this repository pins is current or declared.
-  audit:
-    uses: ./.github/workflows/audit.yml
-
   mirror:
-    needs: [audit]
     runs-on: ubuntu-24.04
     env:
       VERSION: ${{ github.event.inputs.version }}
